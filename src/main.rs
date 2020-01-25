@@ -21,6 +21,8 @@ struct Tcod {
     root: Root,
     con: Offscreen,
 }
+
+// handle user input
 fn handle_keys(tcod: &mut Tcod, o: &mut Object, game: &Game) -> bool {
     let key = tcod.root.wait_for_keypress(true);
     match key {
@@ -61,6 +63,7 @@ fn handle_keys(tcod: &mut Tcod, o: &mut Object, game: &Game) -> bool {
     false
 }
 
+// draw everything
 fn draw(tcod: &mut Tcod, game: &Game, objects: &[Object]) {
     // draw map first
     for i in 0..(game.map.w * game.map.h) {
@@ -78,6 +81,16 @@ fn draw(tcod: &mut Tcod, game: &Game, objects: &[Object]) {
     for o in objects {
         o.draw(&mut tcod.con);
     }
+}
+
+// map generate 
+fn make_map() -> Map {
+    let mut map = Map::new(MAP_WIDTH, MAP_HEIGHT);
+
+    map.create_room(Rect::new(0, 0, 10, 10));
+    map.create_room(Rect::new(0, 15, 10, 10));
+
+    map
 }
 
 fn main() {
@@ -102,10 +115,14 @@ fn main() {
 
     let mut objects = [player, npc];
 
-    let mut map = Map::new(MAP_WIDTH, MAP_HEIGHT);
+    // create the map    
+    // let mut map = Map::new(MAP_WIDTH, MAP_HEIGHT);
 
-    map.data[1] = Tile::wall();
-    map.data[2] = Tile::wall();
+    // map.data[1] = Tile::wall();
+    // map.data[2] = Tile::wall();
+    let map = make_map();
+
+
     // map.data[101] = Tile::wall();
     let game = Game { map };
 
@@ -151,12 +168,14 @@ struct Map {
 impl Map {
     pub fn new(w: usize, h: usize) -> Self {
         Map {
-            data: vec![Tile::empty(); w * h],
+            data: vec![Tile::wall(); w * h],
             w,
             h,
         }
     }
 
+    // given an index in data array
+    // return position(x, y) in 2d cordinate
     pub fn get_idx_pos(&self, i: usize) -> (i32, i32) {
         let x = i % self.w;
         let y = i / self.w;
@@ -164,9 +183,25 @@ impl Map {
         (x as i32, y as i32)
     }
 
-    pub fn within(&self, x: i32, y: i32) -> bool {
-        return x >= 0 && x < (self.w as i32) && y >= 0 && y < (self.h as i32);
+    // given a position(x, y) in 2d cordinate
+    // return index in the map `data` array
+    pub fn get_pos_idx(&self, x: i32, y: i32) -> usize {
+        x as usize + y as usize * self.w
     }
+
+    pub fn within(&self, x: i32, y: i32) -> bool {
+        x >= 0 && x < (self.w as i32) && y >= 0 && y < (self.h as i32)
+    }
+
+    // create a `Rectangle Room` within the map
+    pub fn create_room(&mut self, rect: Rect) {
+        for x in (rect.x1 + 1)..rect.x2 {
+            for y in (rect.y1 + 1)..rect.y2 {
+                let idx = self.get_pos_idx(x, y);
+                self.data[idx] = Tile::empty();
+            }
+        }
+    } 
 }
 
 // Game Struct
@@ -200,7 +235,7 @@ impl Object {
         }
     }
 
-    pub fn draw(&self, con: &mut Console) {
+    pub fn draw(&self, con: &mut dyn Console) {
         con.set_default_foreground(self.color);
         con.put_char(self.x, self.y, self.char, BackgroundFlag::None);
     }
@@ -225,6 +260,26 @@ impl Tile {
         Tile {
             blocked: true,
             block_sight: true,
+        }
+    }
+}
+
+// rect
+#[derive(Debug, Copy, Clone)]
+struct Rect {
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
+}
+
+impl Rect {
+    pub fn new (x1: i32, y1: i32, w: i32, h: i32) -> Self {
+        Rect{
+            x1, 
+            y1,
+            x2: x1 + w,
+            y2: y1 + h,
         }
     }
 }
