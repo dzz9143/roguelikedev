@@ -1,5 +1,6 @@
 use tcod::colors::*;
 use tcod::console::*;
+use std::cmp::*;
 use tcod::input::*;
 
 const SCREEN_WIDTH: i32 = 80;
@@ -9,11 +10,7 @@ const MAP_WIDTH: usize = 80;
 const MAP_HEIGHT: usize = 50;
 
 const COLOR_DARK_WALL: Color = Color { r: 0, g: 0, b: 100 };
-const COLOR_DARK_GROUND: Color = Color {
-    r: 50,
-    g: 50,
-    b: 150,
-};
+const COLOR_DARK_GROUND: Color = Color { r: 50, g: 50, b: 150 };
 
 const LIMIT_FPS: i32 = 20;
 
@@ -110,18 +107,12 @@ fn main() {
         con: con,
     };
 
-    let player = Object::new(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, '@', WHITE);
-    let npc = Object::new(SCREEN_WIDTH / 2 - 10, SCREEN_HEIGHT / 2, '@', YELLOW);
-
-    let mut objects = [player, npc];
-
     // create the map    
-    // let mut map = Map::new(MAP_WIDTH, MAP_HEIGHT);
-
-    // map.data[1] = Tile::wall();
-    // map.data[2] = Tile::wall();
     let map = make_map();
 
+    let player = Object::new(5, 5, '@', WHITE);
+
+    let mut objects = [player];
 
     // map.data[101] = Tile::wall();
     let game = Game { map };
@@ -202,6 +193,22 @@ impl Map {
             }
         }
     } 
+
+    // create a horizontal tunnel
+    pub fn create_h_tunnel(&mut self, x1: i32, x2: i32, y: i32) {
+        for x in min(x1, x2)..max(x1, x2) {
+            let idx = self.get_pos_idx(x, y);
+            self.data[idx] = Tile::empty(); 
+        }
+    }
+
+    // create a vertical tunnel
+    pub fn create_v_tunnel(&mut self, y1: i32, y2: i32, x: i32) {
+        for y in min(y1, y2)..max(y1, y2) {
+            let idx = self.get_pos_idx(x, y);
+            self.data[idx] = Tile::empty(); 
+        }
+    }
 }
 
 // Game Struct
