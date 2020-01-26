@@ -1,16 +1,26 @@
+use std::cmp::*;
 use tcod::colors::*;
 use tcod::console::*;
-use std::cmp::*;
 use tcod::input::*;
+use rand::Rng;
 
 const SCREEN_WIDTH: i32 = 80;
 const SCREEN_HEIGHT: i32 = 50;
 
-const MAP_WIDTH: usize = 80;
-const MAP_HEIGHT: usize = 50;
+const MAP_WIDTH: i32 = 80;
+const MAP_HEIGHT: i32 = 50;
 
 const COLOR_DARK_WALL: Color = Color { r: 0, g: 0, b: 100 };
-const COLOR_DARK_GROUND: Color = Color { r: 50, g: 50, b: 150 };
+const COLOR_DARK_GROUND: Color = Color {
+    r: 50,
+    g: 50,
+    b: 150,
+};
+
+//parameters for dungeon generator
+const ROOM_MAX_SIZE: i32 = 10;
+const ROOM_MIN_SIZE: i32 = 6;
+const MAX_ROOMS: i32 = 30;
 
 const LIMIT_FPS: i32 = 20;
 
@@ -80,12 +90,44 @@ fn draw(tcod: &mut Tcod, game: &Game, objects: &[Object]) {
     }
 }
 
-// map generate 
-fn make_map() -> Map {
-    let mut map = Map::new(MAP_WIDTH, MAP_HEIGHT);
+// map generate
 
-    map.create_room(Rect::new(0, 0, 10, 10));
-    map.create_room(Rect::new(0, 15, 10, 10));
+
+fn make_map(player: &mut Object) -> Map {
+    let mut map = Map::new(MAP_WIDTH as usize, MAP_HEIGHT as usize);
+    let mut rooms = vec![];
+
+    for _i in 0..MAX_ROOMS {
+        let x = rand::thread_rng().gen_range(0, MAP_WIDTH - ROOM_MAX_SIZE);
+        let y = rand::thread_rng().gen_range(0, MAP_HEIGHT - ROOM_MAX_SIZE);
+        let w = rand::thread_rng().gen_range(ROOM_MIN_SIZE, ROOM_MAX_SIZE);
+        let h = rand::thread_rng().gen_range(ROOM_MIN_SIZE, ROOM_MAX_SIZE);
+
+        let new_room = Rect::new(x, y, w, h);
+        let is_intersect = rooms.iter().any(|other_room| new_room.intersect_with(other_room));
+
+        if !is_intersect {
+            let (cur_x, cur_y) = new_room.center();
+            
+            if rooms.is_empty() {
+                // if it's the first room, place player in the center of room
+                player.x = cur_x;
+                player.y = cur_y;
+            } else {
+                // if not connect to previous room
+                let prev_room = &rooms[rooms.len() - 1];
+                let (prev_x, prev_y) = prev_room.center();
+
+                // create tunnel, for now verticall first and then horizontall
+                map.create_v_tunnel(prev_y, cur_y, prev_x);
+                map.create_h_tunnel(prev_x, cur_x, cur_y);
+            }
+
+            // append to rooms
+            map.create_room(new_room);
+            rooms.push(new_room);
+        }
+    }
 
     map
 }
@@ -107,12 +149,13 @@ fn main() {
         con: con,
     };
 
-    // create the map    
-    let map = make_map();
-
+    // create the map
+    
     let player = Object::new(5, 5, '@', WHITE);
-
+    
     let mut objects = [player];
+
+    let map = make_map(&mut objects[0]);
 
     // map.data[101] = Tile::wall();
     let game = Game { map };
@@ -192,13 +235,13 @@ impl Map {
                 self.data[idx] = Tile::empty();
             }
         }
-    } 
+    }
 
     // create a horizontal tunnel
     pub fn create_h_tunnel(&mut self, x1: i32, x2: i32, y: i32) {
         for x in min(x1, x2)..max(x1, x2) {
             let idx = self.get_pos_idx(x, y);
-            self.data[idx] = Tile::empty(); 
+            self.data[idx] = Tile::empty();
         }
     }
 
@@ -206,7 +249,7 @@ impl Map {
     pub fn create_v_tunnel(&mut self, y1: i32, y2: i32, x: i32) {
         for y in min(y1, y2)..max(y1, y2) {
             let idx = self.get_pos_idx(x, y);
-            self.data[idx] = Tile::empty(); 
+            self.data[idx] = Tile::empty();
         }
     }
 }
@@ -234,8 +277,7 @@ impl Object {
     pub fn move_by(&mut self, dx: i32, dy: i32, game: &Game) {
         let _x = self.x + dx;
         let _y = self.y + dy;
-        if game.map.within(_x, _y)
-            && !game.map.data[_x as usize + game.map.w * _y as usize].blocked
+        if game.map.within(_x, _y) && !game.map.data[_x as usize + game.map.w * _y as usize].blocked
         {
             self.x = _x;
             self.y = _y;
@@ -281,12 +323,23 @@ struct Rect {
 }
 
 impl Rect {
-    pub fn new (x1: i32, y1: i32, w: i32, h: i32) -> Self {
-        Rect{
-            x1, 
+    pub fn new(x1: i32, y1: i32, w: i32, h: i32) -> Self {
+        Rect {
+            x1,
             y1,
             x2: x1 + w,
             y2: y1 + h,
         }
+    }
+
+    pub fn center(&self) -> (i32, i32) {
+        ((self.x1 + self.x2) / 2, (self.y1 + self.y2) / 2)
+    }
+
+    pub fn intersect_with(&self, other: &Rect) -> bool {
+        (other.x1 >= self.x1 &&
+        other.x2 <= self.x2 &&
+        other.y1 >= self.y1 &&
+        other.y2 <= self.y2)
     }
 }
