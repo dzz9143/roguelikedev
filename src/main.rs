@@ -1,8 +1,8 @@
+use rand::Rng;
 use std::cmp::*;
 use tcod::colors::*;
 use tcod::console::*;
 use tcod::input::*;
-use rand::Rng;
 
 const SCREEN_WIDTH: i32 = 80;
 const SCREEN_HEIGHT: i32 = 50;
@@ -92,7 +92,6 @@ fn draw(tcod: &mut Tcod, game: &Game, objects: &[Object]) {
 
 // map generate
 
-
 fn make_map(player: &mut Object) -> Map {
     let mut map = Map::new(MAP_WIDTH as usize, MAP_HEIGHT as usize);
     let mut rooms = vec![];
@@ -104,23 +103,31 @@ fn make_map(player: &mut Object) -> Map {
         let h = rand::thread_rng().gen_range(ROOM_MIN_SIZE, ROOM_MAX_SIZE);
 
         let new_room = Rect::new(x, y, w, h);
-        let is_intersect = rooms.iter().any(|other_room| new_room.intersect_with(other_room));
+        let is_intersected = rooms
+            .iter()
+            .any(|other_room| new_room.is_intersected(other_room));
 
-        if !is_intersect {
+        if !is_intersected {
             let (cur_x, cur_y) = new_room.center();
-            
             if rooms.is_empty() {
                 // if it's the first room, place player in the center of room
                 player.x = cur_x;
                 player.y = cur_y;
             } else {
-                // if not connect to previous room
+                // if not, connect to previous room
                 let prev_room = &rooms[rooms.len() - 1];
                 let (prev_x, prev_y) = prev_room.center();
 
-                // create tunnel, for now verticall first and then horizontall
-                map.create_v_tunnel(prev_y, cur_y, prev_x);
-                map.create_h_tunnel(prev_x, cur_x, cur_y);
+                // create tunnel
+                if rand::random() {
+                    // vertical first
+                    map.create_v_tunnel(prev_y, cur_y, prev_x);
+                    map.create_h_tunnel(prev_x, cur_x, cur_y);
+                } else {
+                    // horizontal first
+                    map.create_h_tunnel(prev_x, cur_x, prev_y);
+                    map.create_v_tunnel(prev_y, cur_y, cur_x);
+                }
             }
 
             // append to rooms
@@ -150,9 +157,7 @@ fn main() {
     };
 
     // create the map
-    
     let player = Object::new(5, 5, '@', WHITE);
-    
     let mut objects = [player];
 
     let map = make_map(&mut objects[0]);
@@ -190,8 +195,6 @@ fn main() {
 }
 
 // Map
-// type Map = Vec<Tile>;
-
 #[derive(Debug)]
 struct Map {
     data: Vec<Tile>,
@@ -239,7 +242,7 @@ impl Map {
 
     // create a horizontal tunnel
     pub fn create_h_tunnel(&mut self, x1: i32, x2: i32, y: i32) {
-        for x in min(x1, x2)..max(x1, x2) {
+        for x in min(x1, x2)..(max(x1, x2) + 1) {
             let idx = self.get_pos_idx(x, y);
             self.data[idx] = Tile::empty();
         }
@@ -247,7 +250,7 @@ impl Map {
 
     // create a vertical tunnel
     pub fn create_v_tunnel(&mut self, y1: i32, y2: i32, x: i32) {
-        for y in min(y1, y2)..max(y1, y2) {
+        for y in min(y1, y2)..(max(y1, y2) + 1) {
             let idx = self.get_pos_idx(x, y);
             self.data[idx] = Tile::empty();
         }
@@ -336,10 +339,7 @@ impl Rect {
         ((self.x1 + self.x2) / 2, (self.y1 + self.y2) / 2)
     }
 
-    pub fn intersect_with(&self, other: &Rect) -> bool {
-        (other.x1 >= self.x1 &&
-        other.x2 <= self.x2 &&
-        other.y1 >= self.y1 &&
-        other.y2 <= self.y2)
+    pub fn is_intersected(&self, other: &Rect) -> bool {
+        !(other.x2 < self.x1 || other.x1 > self.x2 || other.y2 < self.y1 || other.y1 > self.y2)
     }
 }
